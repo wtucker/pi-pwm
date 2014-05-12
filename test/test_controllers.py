@@ -28,11 +28,11 @@ def test_controller():
 
 
 def test_dict(test_controller):
-    test_controller.duty = 10
+    test_controller.duty = .1
     assert_dict_contains_subset(
         {
             'interval': 1,
-            'duty': 10,
+            'duty': .1,
         },
         dict(test_controller)
     )
@@ -67,14 +67,54 @@ def test_on_off(test_controller):
 
 
 @pytest.mark.parametrize(
+    ["name", "low", "high", "value", "expected"],
+    [
+        ["foo", 0.0, 1.0, 1.0, 1.0],
+        ["foo", 0.0, 10.0, 1, 1.0],
+        ["foo", -1, 1, 0, 0.0],
+        ["foo", 0.0, 10.0, 10.1, ValueError],
+        ["foo", 0.0, 10.0, -1, ValueError],
+    ]
+)
+def test_validate_float(test_controller, name, low, high, value, expected):
+    if is_exception(expected):
+        with assert_raises(expected) as ar:
+            test_controller._validate_float(name, low, high, value)
+    else:
+        v = test_controller._validate_float(name, low, high, value)
+        assert v == expected
+        assert type(v) == type(expected)
+
+
+@pytest.mark.parametrize(
+    ["name", "low", "high", "value", "expected"],
+    [
+        ["foo", 0, 1, 1, 1],
+        ["foo", 0, 10, 1.1, 1],
+        ["foo", -1, 1, 0, 0],
+        ["foo", 0, 10, 11, ValueError],
+        ["foo", 0, 10, -1, ValueError],
+    ]
+)
+def test_validate_integer(test_controller, name, low, high, value, expected):
+    if is_exception(expected):
+        with assert_raises(expected) as ar:
+            test_controller._validate_integer(name, low, high, value)
+    else:
+        v = test_controller._validate_integer(name, low, high, value)
+        assert v == expected
+        assert type(v) == type(expected)
+
+
+@pytest.mark.parametrize(
     ["interval", "expected", "extra"],
     [
-        [controllers.MIN_INTERVAL, controllers.MIN_INTERVAL, None],
-        [controllers.MAX_INTERVAL, controllers.MAX_INTERVAL, None],
-        [1.1, 1, None],
-        [1.5, 2, None],
-        [controllers.MIN_INTERVAL-1, ValueError, "interval must be between"],
-        [controllers.MAX_INTERVAL+1, ValueError, "interval must be between"],
+        [controllers.DEFAULT_MIN_INTERVAL, controllers.DEFAULT_MIN_INTERVAL, None],
+        [controllers.DEFAULT_MAX_INTERVAL, controllers.DEFAULT_MAX_INTERVAL, None],
+        [1.1, 1.1, None],
+        [1.5, 1.5, None],
+        [controllers.DEFAULT_MIN_INTERVAL-1, ValueError, "interval must be between"],
+        [controllers.DEFAULT_MAX_INTERVAL+1, ValueError, "interval must be between"],
     ]
 )
 def test_interval_validation(test_controller, interval, expected, extra):
@@ -95,11 +135,11 @@ def test_interval_validation(test_controller, interval, expected, extra):
     ["duty", "expected", "extra"],
     [
         [0, 0, None],
-        [100, 100, None],
-        [1.1, 1, None],
-        [1.5, 2, None],
+        [1, 1, None],
+        [.1, .1, None],
+        [.5, .5, None],
         [-1, ValueError, "duty cycle must be between"],
-        [101, ValueError, "duty cycle must be between"],
+        [1.1, ValueError, "duty cycle must be between"],
     ]
 )
 def test_duty_validation(test_controller, duty, expected, extra):
@@ -122,7 +162,7 @@ def test_deadman(test_controller):
     # ping is noop if dead_interval isn't set
     assert not test_controller.ping()
     test_controller.dead_interval = DEAD_INTERVAL
-    assert test_controller.dead_time is None
+    assert test_controller._dead_time is None
     t = time.time()
     with mock.patch('pi_pwm.controllers.time.time', mock.Mock()) as time_time:
         time_time.side_effect = itertools.repeat(t)
@@ -155,7 +195,7 @@ def test_deadman(test_controller):
         time_time.side_effect = itertools.repeat(t+120)
         assert test_controller.dead_timer == -50
         assert not test_controller.on()
-        test_controller.duty = 50
+        test_controller.duty = .5
         assert test_controller.dead_timer == DEAD_INTERVAL
         assert test_controller.on()
 
@@ -166,11 +206,11 @@ def test_deadman(test_controller):
         # full off
         [1, 0, 0.0, 1.0],
         # full on
-        [1, 100, 1.0, 0.0],
+        [1, 1, 1.0, 0.0],
         # 25%
-        [1, 25, .25, .75],
+        [1, .25, .25, .75],
         # 25% with different interval
-        [10, 25, 2.5, 7.5],
+        [10, .25, 2.5, 7.5],
     ]
 )
 def test_calculate_durations(test_controller, interval, duty, expected_on_duration, expected_off_duration):
@@ -193,11 +233,11 @@ def test_body(test_controller):
                 assert not on.called
                 assert off.called
                 assert time_sleep.called_once_with(test_controller.interval)
-                # if duty == 100 then on() should be called and off() should not
+                # if duty == 1 then on() should be called and off() should not
                 on.reset_mock()
                 off.reset_mock()
                 time_sleep.reset_mock()
-                test_controller.duty = 100
+                test_controller.duty = 1
                 test_controller._body()
                 assert on.called
                 assert not off.called
@@ -206,7 +246,7 @@ def test_body(test_controller):
                 on.reset_mock()
                 off.reset_mock()
                 time_sleep.reset_mock()
-                test_controller.duty = 25
+                test_controller.duty = .25
                 test_controller._body()
                 assert on.called
                 assert off.called
@@ -220,7 +260,7 @@ def test_body_shutoff_on_deadman(test_controller):
         with mock.patch('pi_pwm.controllers.time.sleep', mock.Mock()) as time_sleep:
             test_controller.dead_interval = DEAD_INTERVAL
             time_time.side_effect = itertools.repeat(t)
-            test_controller.duty = 100
+            test_controller.duty = 1
             assert not test_controller.is_on
             test_controller._body()
             assert test_controller.is_on
@@ -245,7 +285,7 @@ def test_run_normal_shutdown(test_controller):
         raise AssertionError("controller did not respond to shutdown")
     with mock.patch("pi_pwm.controllers.BasePWMController.off", mock.Mock()) as off:
         with mock.patch("pi_pwm.controllers.BasePWMController._body", mock.Mock()) as body:
-            test_controller.duty = 100
+            test_controller.duty = 1
             body.side_effect = body_side_effect(test_controller, off)
             assert off.call_count == 0
             test_controller.run()
@@ -261,7 +301,7 @@ def test_run_unclean_shutdown(test_controller):
         raise AssertionError("controller did not respond to shutdown")
     with mock.patch("pi_pwm.controllers.BasePWMController.off", mock.Mock()) as off:
         with mock.patch("pi_pwm.controllers.BasePWMController._body", mock.Mock()) as body:
-            test_controller.duty = 100
+            test_controller.duty = 1
             body.side_effect = body_side_effect(test_controller)
             assert off.call_count == 0
             with assert_raises(RuntimeError) as ar:

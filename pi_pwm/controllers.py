@@ -10,8 +10,8 @@ import yaml
 
 from contextlib import closing
 
-MIN_INTERVAL = 1
-MAX_INTERVAL = 10
+DEFAULT_MIN_INTERVAL = 1
+DEFAULT_MAX_INTERVAL = 10
 
 log = logging.getLogger(__name__)
 
@@ -25,28 +25,60 @@ class BasePWMController(threading.Thread):
 
     Parameters
     ----------
-    interval : int
-        The cycle interval, in seconds.  Must be between MIN_INTERVAL and MAX_INTERVAL,
+    min_interval : float or int
+        The minimum value that can be set for interval.
+    max_interval : float or int
+        The maximum value that can be set for interval.
+    interval : float or int
+        The cycle interval, in seconds.  Must be between min_interval and max_interval,
         inclusive.
+    dead_interval : int
+        The interval, in seconds to be used for the deadman timer (dead_timer).  If greater
+        than zero, the controller will reset dead_timer every time ping() is called or duty
+        is updated.  If dead_timer reaches zero, the controller will disable all outputs
+        until dead_timer is reset.
 
     """
-    def __init__(self, interval=1, dead_interval=0, *args, **kwargs):
+    ITERABLES = [
+        ("class", "__class__.__name__"),
+        ("thread_id", "_Thread__ident"), ("thread_name", "_Thread__name"),
+        "interval", "min_interval", "max_interval",
+        "duty",
+        "dead_interval", "dead_timer",
+    ]
+    def __init__(
+            self,
+            min_interval=DEFAULT_MIN_INTERVAL,
+            max_interval=DEFAULT_MAX_INTERVAL,
+            interval=1,
+            dead_interval=0,
+            *args,
+            **kwargs
+        ):
         super(BasePWMController, self).__init__(*args, **kwargs)
+        # setters need this to go first
         self.lock = threading.Lock()
+        # same for these
+        self.min_interval = min_interval
+        self.max_interval = max_interval
+        # other parameters
         self.interval = interval
-        self.dead_interval = dead_interval
+        self.dead_interval = self._validate_integer("dead_interval", 0, float("inf"), dead_interval)
         # internals
         self.daemon = True
-        self.dead_time = None
-        self.shutdown = False
+        self._dead_time = None
+        self._shutdown = False
         self.is_on = False
         self._atexit_registered = False
         # must be set after the internals
         self.duty = 0
 
     def __iter__(self):
-        for k in ["interval", "duty", "dead_interval", "dead_timer"]:
-            yield (k, getattr(self, k))
+        for k in self.ITERABLES:
+            if isinstance(k, tuple):
+                yield (k[0], reduce(getattr, k[1].split("."), self))
+            else:
+                yield (k, getattr(self, k))
 
     def __del__(self):
         self.off()
@@ -62,7 +94,7 @@ class BasePWMController(threading.Thread):
     def on(self):
         if not self.is_on:
             if self.dead_interval and self.dead_timer <= 0:
-                log.warn("dead timer has expired by %d seconds; refusing to enable output", abs(self.dead_time))
+                log.warn("dead timer has expired by %d seconds; refusing to enable output", abs(self.dead_timer))
                 return self.is_on
             with self.lock:
                 self.is_on = True
@@ -75,6 +107,16 @@ class BasePWMController(threading.Thread):
                 self.is_on = False
                 self._off()
         return self.is_on
+
+    @staticmethod
+    def _validate_float(name, low, high, value):
+        value = float(value)
+        if value < low or value > high:
+            raise ValueError(
+                "{} must be between {} and {}, inclusive"
+                .format(name, low, high)
+            )
+        return value
 
     @staticmethod
     def _validate_integer(name, low, high, value):
@@ -91,7 +133,7 @@ class BasePWMController(threading.Thread):
             return self._interval
 
     def set_interval(self, interval):
-        interval = self._validate_integer("interval", MIN_INTERVAL, MAX_INTERVAL, interval)
+        interval = self._validate_float("interval", self.min_interval, self.max_interval, interval)
         with self.lock:
             self._interval = interval
 
@@ -107,7 +149,7 @@ class BasePWMController(threading.Thread):
             return self._duty
 
     def set_duty(self, duty):
-        duty = self._validate_integer("duty cycle", 0, 100, duty)
+        duty = self._validate_float("duty cycle", 0, 1, duty)
         with self.lock:
             self._duty = duty
         self.ping()
@@ -116,25 +158,25 @@ class BasePWMController(threading.Thread):
         get_duty,
         set_duty,
         None,
-        "the percentage of time (expressed as an integer between 0 and 100) that the output should be on for each cycle"
+        "the percentage of time (expressed as float between 0.0 and 1.0) that the output should be on for each cycle"
     )
 
     def ping(self):
         with self.lock:
             if not self.dead_interval:
                 return None
-            self.dead_time = time.time() + self.dead_interval
+            self._dead_time = time.time() + self.dead_interval
             return self.dead_interval
 
     @property
     def dead_timer(self):
         with self.lock:
-            if not self.dead_time:
+            if not self._dead_time:
                 return None
-            return int(self.dead_time - time.time())
+            return int(self._dead_time - time.time())
 
     def _calculate_durations(self):
-        on_duration = self.interval * (self.duty / 100.0)
+        on_duration = self.interval * self.duty
         off_duration = self.interval - on_duration
         return [on_duration, off_duration]
 
@@ -176,6 +218,7 @@ class BasePWMController(threading.Thread):
 
 
 class SysFSPWMController(BasePWMController):
+    ITERABLES = BasePWMController.ITERABLES + ["gpio_id"]
     def __init__(self, gpio_id, *args, **kwargs):
         super(SysFSPWMController, self).__init__(*args, **kwargs)
         self.gpio_id = gpio_id

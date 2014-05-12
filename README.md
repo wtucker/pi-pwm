@@ -4,7 +4,7 @@ PWM (Pulse Width Modulation) controller service for Raspberry Pi.
 
 ## controllers.py ##
 
-pi_pwm.controllers contains classes intended to run as background threads and toggle outputs on and off based on *interval* and *duty* (duty cycle) parameters.  The main loop (contained in `run()`) will run approximately once every *interval* seconds, and the output will be on for *duty*% of each interval.
+pi_pwm.controllers contains classes intended to run as background threads and toggle outputs on and off based on *interval* and *duty* (duty cycle) parameters.  The main loop (contained in `run()`) will run approximately once every *interval* seconds, and the output will be on for (*duty**100)% of each interval.
 
 These controllers are not intended for use in applications that require precision output.  Intended loads are heating elements and DC pump motors (wired to the Pi's GPIO via solid state relays or similar).
 
@@ -24,19 +24,19 @@ This controller class allows control of a GPIO pin that has been exported to sys
 #### Example usage ####
     >>> import pi_pwm.controllers
     >>> c = pi_pwm.controllers.SysFSPWMController(gpio_id=24)
-    >>> c.duty = 50
+    >>> c.duty = .5
     >>> c.start()
     # duty can be changed on the fly
-    >>> c.duty = 20
+    >>> c.duty = .2
     # so can interval, if you're so inclined
     >>> c.interval = 2
     # note that the output is not toggled at the end of the interval if duty is set to 0 or 100 (to help prevent short-cycling the load)
-    >>> c.duty = 100
+    >>> c.duty = 1
     # current values can be retrieved directly
     >>> c.duty
-    100
+    1.0
     # the base class also implements an __iter__() method meaning you can dict() it
     >>> dict(c)
-    {'duty': 100, 'dead_interval': 0, 'interval': 1, 'dead_timer': None}
+    {'duty': 1.0, 'dead_interval': 0, 'interval': 1.0, 'dead_timer': None}
     # when you're done, tell it to clean up and exit
     c.stop()
