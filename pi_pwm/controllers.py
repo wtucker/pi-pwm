@@ -218,6 +218,29 @@ class BasePWMController(threading.Thread):
 
 
 class SysFSPWMController(BasePWMController):
+    """PWM controller class for GPIO pins accessible through /sys/class/gpio/
+
+    Developed for and tested on Raspbian 7 (wheezy).
+
+    Parameters
+    ----------
+    gpio_id : int
+        The GPIO pin id.  Must have been exported as /sys/class/gpio/gpio<id>
+
+    See Also
+    --------
+    BasePWMController
+
+    Notes
+    -----
+    Exporting is left as an exercise to the operator.  Here's an example of how to
+    export GPIO pin #24:
+
+    echo 24 | sudo tee /sys/class/gpio/export
+    sudo chown -R *youruser* /sys/class/gpio/gpio24/
+    echo out > /sys/class/gpio/gpio24/direction
+
+    """
     ITERABLES = BasePWMController.ITERABLES + ["gpio_id"]
     def __init__(self, gpio_id, *args, **kwargs):
         super(SysFSPWMController, self).__init__(*args, **kwargs)
