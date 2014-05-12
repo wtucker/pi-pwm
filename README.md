@@ -18,7 +18,7 @@ This controller class allows control of a GPIO pin that has been exported to sys
 
 #### Example export ####
     echo 24 | sudo tee /sys/class/gpio/export
-    sudo chown -R *youruser* /sys/class/gpio/gpio24
+    sudo chown -R *youruser* /sys/class/gpio/gpio24/
     echo out > /sys/class/gpio/gpio24/direction
 
 #### Example usage ####

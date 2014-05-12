@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 import sys
 
@@ -32,8 +34,8 @@ setup(
     description = ("PWM (Pulse Width Modulation) controller service for Raspberry Pi"),
     license = "BSD",
     keywords = "raspberry pi sous vide homebrew",
-    extras_require=[
-        'pyyaml'
+    install_requires=[
+        'pyyaml',
     ],
     packages=['pi_pwm'],
     tests_require=[

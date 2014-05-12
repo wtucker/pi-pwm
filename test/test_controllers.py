@@ -236,19 +236,20 @@ def test_body_shutoff_on_deadman(test_controller):
 
 
 def test_run_normal_shutdown(test_controller):
-    def body_side_effect(controller):
+    def body_side_effect(controller, off):
         for i in range(5):
             yield
         controller.stop()
+        assert off.call_count == 1
         yield
         raise AssertionError("controller did not respond to shutdown")
     with mock.patch("pi_pwm.controllers.BasePWMController.off", mock.Mock()) as off:
         with mock.patch("pi_pwm.controllers.BasePWMController._body", mock.Mock()) as body:
             test_controller.duty = 100
-            body.side_effect = body_side_effect(test_controller)
+            body.side_effect = body_side_effect(test_controller, off)
             assert off.call_count == 0
             test_controller.run()
-            assert off.call_count == 1
+            assert off.call_count == 2
 
 
 def test_run_unclean_shutdown(test_controller):

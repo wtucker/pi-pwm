@@ -4,6 +4,7 @@ import logging
 import threading
 import time
 import sys
+import atexit
 
 import yaml
 
@@ -35,9 +36,11 @@ class BasePWMController(threading.Thread):
         self.interval = interval
         self.dead_interval = dead_interval
         # internals
+        self.daemon = True
         self.dead_time = None
         self.shutdown = False
         self.is_on = False
+        self._atexit_registered = False
         # must be set after the internals
         self.duty = 0
 
@@ -156,6 +159,8 @@ class BasePWMController(threading.Thread):
             time.sleep(off_duration)
 
     def run(self):
+        if not self._atexit_registered:
+            atexit.register(self.stop)
         self.shutdown = False
         self.ping()
         try:
@@ -167,6 +172,7 @@ class BasePWMController(threading.Thread):
     def stop(self):
         with self.lock:
             self.shutdown = True
+        self.off()
 
 
 class SysFSPWMController(BasePWMController):
