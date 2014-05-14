@@ -4,7 +4,7 @@ PWM (Pulse Width Modulation) controller service for Raspberry Pi.
 
 ## controllers.py ##
 
-pi_pwm.controllers contains classes intended to run as background threads and toggle outputs on and off based on *interval* and *duty* (duty cycle) parameters.  The main loop (contained in `run()`) will run approximately once every *interval* seconds, and the output will be on for (*duty* *100)% of each interval.
+pi_pwm.controllers contains classes intended to run as background threads and toggle outputs on and off based on *interval* and *duty* (duty cycle) parameters.  The main loop (contained in `run()`) will run approximately once every *interval* seconds, and the output will be on for (_duty_*100)% of each interval.
 
 These controllers are not intended for use in applications that require precision output.  Intended loads are heating elements and DC pump motors (wired to the Pi's GPIO via solid state relays or similar).
 
