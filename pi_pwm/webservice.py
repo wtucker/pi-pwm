@@ -129,8 +129,10 @@ def create_app(config_file):
     atexit.register(stop)
     return app
 
-def init_app():
-    app = create_app(os.environ.get("PWM_CONFIG", "config.yaml"))
+def init_app(config=None):
+    if not config:
+        config = os.environ.get("PWM_CONFIG", "config.yaml")
+    app = create_app(config)
     app.debug = True
     return app
 
