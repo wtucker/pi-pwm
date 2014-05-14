@@ -40,3 +40,13 @@ This controller class allows control of a GPIO pin that has been exported to sys
     {'duty': 1.0, 'dead_interval': 0, 'interval': 1.0, 'dead_timer': None}
     # when you're done, tell it to clean up and exit
     c.stop()
+
+## webservice.py ##
+
+pi_pwm.webservice contains a simple WSGI service for managing controllers through API calls.
+
+#### Example usage ####
+
+    PYTHONPATH=. PWM_CONFIG=examples/config.yaml gunicorn -b 0.0.0.0:8080 -b "[::]:8080" --preload --debug --log-level debug --workers 1 "pi_pwm.webservice:init_app()"
+
+

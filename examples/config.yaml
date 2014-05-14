@@ -1,0 +1,8 @@
+controllers:
+    boil:
+        class: SysFSPWMController
+        args:
+            interval: 1
+            dead_interval: 3600
+            gpio_id: 24
+

@@ -28,6 +28,7 @@ def test_controller():
 
 
 def test_dict(test_controller):
+    """verify that __iter__() (used by dict()) works"""
     test_controller.duty = .1
     assert_dict_contains_subset(
         {
@@ -39,6 +40,7 @@ def test_dict(test_controller):
 
 
 def test_on_off(test_controller):
+    """verify that the controller turns the load off and on as expected"""
     with mock.patch("pi_pwm.controllers.BasePWMController._on", mock.Mock()) as _on:
         with mock.patch("pi_pwm.controllers.BasePWMController._off", mock.Mock()) as _off:
             assert _on.call_count == 0
@@ -83,7 +85,7 @@ def test_validate_float(test_controller, name, low, high, value, expected):
     else:
         v = test_controller._validate_float(name, low, high, value)
         assert v == expected
-        assert type(v) == type(expected)
+        assert type(v) == float
 
 
 @pytest.mark.parametrize(
@@ -103,7 +105,7 @@ def test_validate_integer(test_controller, name, low, high, value, expected):
     else:
         v = test_controller._validate_integer(name, low, high, value)
         assert v == expected
-        assert type(v) == type(expected)
+        assert type(v) == int
 
 
 @pytest.mark.parametrize(
@@ -113,6 +115,7 @@ def test_validate_integer(test_controller, name, low, high, value, expected):
         [controllers.DEFAULT_MAX_INTERVAL, controllers.DEFAULT_MAX_INTERVAL, None],
         [1.1, 1.1, None],
         [1.5, 1.5, None],
+        # out of bounds
         [controllers.DEFAULT_MIN_INTERVAL-1, ValueError, "interval must be between"],
         [controllers.DEFAULT_MAX_INTERVAL+1, ValueError, "interval must be between"],
     ]
@@ -138,6 +141,7 @@ def test_interval_validation(test_controller, interval, expected, extra):
         [1, 1, None],
         [.1, .1, None],
         [.5, .5, None],
+        # out of bounds
         [-1, ValueError, "duty cycle must be between"],
         [1.1, ValueError, "duty cycle must be between"],
     ]
@@ -222,6 +226,7 @@ def test_calculate_durations(test_controller, interval, duty, expected_on_durati
 
 
 def test_body(test_controller):
+    """verify that _body() works as expected"""
     with mock.patch("pi_pwm.controllers.BasePWMController.on", mock.Mock()) as on:
         with mock.patch("pi_pwm.controllers.BasePWMController.off", mock.Mock()) as off:
             with mock.patch("pi_pwm.controllers.time.sleep", mock.Mock()) as time_sleep:
@@ -254,6 +259,7 @@ def test_body(test_controller):
 
 
 def test_body_shutoff_on_deadman(test_controller):
+    """verify that _body() behaves appropriately when the dead timer expires"""
     DEAD_INTERVAL = 10
     t = time.time()
     with mock.patch('pi_pwm.controllers.time.time', mock.Mock()) as time_time:
@@ -273,9 +279,14 @@ def test_body_shutoff_on_deadman(test_controller):
             test_controller._body()
             assert test_controller.dead_timer == 0
             assert not test_controller.is_on
-
+            # reset it
+            test_controller.ping()
+            test_controller._body()
+            assert test_controller.dead_timer == 10
+            assert test_controller.is_on
 
 def test_run_normal_shutdown(test_controller):
+    """verify that we exit correctly when stop() is called"""
     def body_side_effect(controller, off):
         for i in range(5):
             yield
@@ -289,6 +300,7 @@ def test_run_normal_shutdown(test_controller):
             body.side_effect = body_side_effect(test_controller, off)
             assert off.call_count == 0
             test_controller.run()
+            # .stop() calls .off() and it should also be called in the finally stanza
             assert off.call_count == 2
 
 

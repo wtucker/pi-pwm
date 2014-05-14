@@ -25,6 +25,8 @@ class BasePWMController(threading.Thread):
 
     Parameters
     ----------
+    name : string
+        The controller name.  For display purposes only.
     min_interval : float or int
         The minimum value that can be set for interval.
     max_interval : float or int
@@ -41,13 +43,15 @@ class BasePWMController(threading.Thread):
     """
     ITERABLES = [
         ("class", "__class__.__name__"),
-        ("thread_id", "_Thread__ident"), ("thread_name", "_Thread__name"),
+        ("thread_id", "_Thread__ident"),
+        "name",
         "interval", "min_interval", "max_interval",
         "duty",
         "dead_interval", "dead_timer",
     ]
     def __init__(
             self,
+            name='<unspecified>',
             min_interval=DEFAULT_MIN_INTERVAL,
             max_interval=DEFAULT_MAX_INTERVAL,
             interval=1,
@@ -56,6 +60,7 @@ class BasePWMController(threading.Thread):
             **kwargs
         ):
         super(BasePWMController, self).__init__(*args, **kwargs)
+        self.name = name
         # setters need this to go first
         self.lock = threading.Lock()
         # same for these
@@ -67,6 +72,7 @@ class BasePWMController(threading.Thread):
         # internals
         self.daemon = True
         self._dead_time = None
+        self._dead_logged = False
         self._shutdown = False
         self.is_on = False
         self._atexit_registered = False
@@ -94,7 +100,7 @@ class BasePWMController(threading.Thread):
     def on(self):
         if not self.is_on:
             if self.dead_interval and self.dead_timer <= 0:
-                log.warn("dead timer has expired by %d seconds; refusing to enable output", abs(self.dead_timer))
+                log.warn("|%s|dead timer has expired by %d seconds; refusing to enable output", self.name, abs(self.dead_timer))
                 return self.is_on
             with self.lock:
                 self.is_on = True
@@ -166,6 +172,9 @@ class BasePWMController(threading.Thread):
             if not self.dead_interval:
                 return None
             self._dead_time = time.time() + self.dead_interval
+            if self._dead_logged:
+                log.info("|%s|ping received; going active", self.name)
+                self._dead_logged = False
             return self.dead_interval
 
     @property
@@ -183,10 +192,12 @@ class BasePWMController(threading.Thread):
     def _body(self):
         if self.dead_interval and self.dead_timer <= 0:
             if self.is_on:
-                log.warn("dead timer has expired; disabling output")
                 self.off()
-                time.sleep(self.interval)
-                return
+            if not self._dead_logged:
+                log.warn("|%s|dead timer has expired", self.name)
+                self._dead_logged = True
+            time.sleep(self.interval)
+            return
         on_duration, off_duration = self._calculate_durations()
         if not on_duration:
             self.off()
@@ -201,6 +212,7 @@ class BasePWMController(threading.Thread):
             time.sleep(off_duration)
 
     def run(self):
+        log.info("|%s|starting", self.name)
         if not self._atexit_registered:
             atexit.register(self.stop)
         self.shutdown = False
@@ -258,7 +270,7 @@ class SysFSPWMController(BasePWMController):
          self.gpio.write("0")
 
 
-def from_config(config_file):
+def from_config(config_file, autostart=True):
     """Initialize one or more PWM controllers from a configuration file
 
     Parameters
@@ -266,6 +278,8 @@ def from_config(config_file):
     config_file : str or file_like
         The file containing the configuration.  Can be a string (to be interpreted as the
         path to the file) or an open file handle.
+    autostart : bool
+        If True (the default), all controllers will be started automatically.
 
     Returns
     -------
@@ -335,5 +349,8 @@ def from_config(config_file):
                 "controler '{}' args must be a dict, not '{:s}'"
                 .format(cname, type(cargs))
             )
-        controllers[cname] = cclass(**cargs)
+        controllers[cname] = cclass(name=cname, **cargs)
+    if autostart:
+        for c in controllers.itervalues():
+            c.start()
     return controllers
