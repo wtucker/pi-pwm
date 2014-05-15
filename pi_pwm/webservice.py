@@ -118,7 +118,7 @@ def create_app(config_file):
                     new_values[k] = new
                     try:
                         setattr(c, k, new)
-                    except ValueError as exc:
+                    except Exception as exc:
                         for k, v in old_values.iteritems():
                             setattr(c, k, v)
                         return ({"error": exc.message}, 400)
