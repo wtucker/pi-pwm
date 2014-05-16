@@ -34,21 +34,22 @@ setup(
     description = ("PWM (Pulse Width Modulation) controller service for Raspberry Pi"),
     license = "BSD",
     keywords = "raspberry pi sous vide homebrew",
-    install_requires=[
-        'pyyaml',
+    install_requires = [
+        'pyyaml>=3.10',
+        'flask>=0.8'
     ],
-    packages=['pi_pwm'],
-    tests_require=[
-        'pytest',
-        'pytest-cov',
-        'nose',
-        'mock'
+    packages = ['pi_pwm'],
+    tests_require = [
+        'pytest>=2.5.2',
+        'pytest-cov>=1.6',
+        'nose>=1.1.2',
+        'mock>=1.0.1'
     ],
     cmdclass = {
         'test': PyTest,
     },
-    long_description=read('README.md'),
-    classifiers=[
+    long_description = read('README.md'),
+    classifiers = [
         "Development Status :: 3 - Alpha",
         "Topic :: Home Automation",
         "License :: OSI Approved :: BSD License",
