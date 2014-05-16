@@ -27,7 +27,7 @@ def create_app(config_file):
         global controllers
         controllers = pi_pwm.controllers.from_config(config_file)
 
-    def stop():
+    def stop(): # pragma: no cover
         global controllers
         for c, o in controllers.iteritems():
             try:
@@ -74,7 +74,7 @@ def create_app(config_file):
         global controllers
         return {c: dict(controllers[c]) for c in controllers}
 
-    @app.route("/echo/", methods=["POST"])
+    @app.route("/echo/", methods=["POST"], strict_slashes=False)
     @json_io
     def echo():
         return {
@@ -111,7 +111,7 @@ def create_app(config_file):
         elif request.method == "POST":
             old_values = {}
             new_values = {}
-            for k in ('interval', 'duty', 'dead_interval'):
+            for k in ('interval', 'duty'):
                 if k in request.json:
                     old, new = getattr(c, k), request.json[k]
                     old_values[k] = old
@@ -136,7 +136,7 @@ def init_app(config=None):
     app.debug = True
     return app
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     logging.basicConfig(format="%(asctime)s %(thread)d %(levelname)s %(message)s")
     logging.getLogger("").setLevel(logging.DEBUG)
     #app = init_app().test_client()
